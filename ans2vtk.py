@@ -58,7 +58,7 @@ def writefile(filename,nodes, nodedict, elements, elemdict, cell_type,
             f.write('{0[0]} {0[1]} {0[2]} \n'.format(vecnodedata[dat][j]))
     f.close()
 
-def read_dot_node(filename):
+def read_dot_node(filename, node_set):
     """Return node data from .NODE file written by ANSYS NWRITE command
 
     Each line in the .NODE file contains node number followed by x,y,z coordinates
@@ -70,9 +70,11 @@ def read_dot_node(filename):
         for line in f:
             # get rid of "\n", empty spaces and split into a list
             entries = line.splitlines()[0].split()
-            node_dict[entries[0]] = ncount
-            node_coord.append(entries[1:4])
-            ncount += 1
+            nnum = entries[0]  # node number
+            if nnum in node_set:
+                node_dict[nnum] = ncount
+                node_coord.append(entries[1:4])
+                ncount += 1
     return node_dict, node_coord
 
 def read_dot_elem(filename, midnodes=False):
@@ -126,7 +128,12 @@ def read_dot_elem(filename, midnodes=False):
                     cell_type[ecount-1] = vtk_cell_types[
                             'VTK_QUADRATIC_HEXAHEDRON']
                     elem_connect[-1] += entries
-    return elem_dict, elem_connect, cell_type
+
+    node_set = [] # set of nodes contained in elem_connect
+    for e in elem_connect:
+        node_set += e           # 1-dim list
+    node_set = set(node_set)
+    return elem_dict, elem_connect, cell_type, node_set
 
 def augment_node_data(swap_nodedict, part_data, pkey='NODE', 
         aug_dict={'rest': 0}):
@@ -170,8 +177,8 @@ if __name__=="__main__":
     
     nodefile, elfile = ('data2d/submodsm6_v01_struct.node', 
                         'data2d/submodsm6_v01_struct.elem') # 8 node
-    #nodefile, elfile = ('data3d/submodsm6_v01_therm.node', 
-    #                    'data3d/submodsm6_v01_therm.elem') # 20 node
+    nodefile, elfile = ('data3d/submodsm6_v01_therm.node', 
+                        'data3d/submodsm6_v01_therm.elem') # 20 node
 
     nodes = []
     elements = []
@@ -182,8 +189,8 @@ if __name__=="__main__":
 
     #read_nodes(nodefile,nodes,nodedict)
     #read_elements(elfile,elements,elemdict)
-    nodedict, nodes = read_dot_node(nodefile)
-    elemdict, elements, cell_type = read_dot_elem(elfile, midnodes=True)
+    elemdict, elements, cell_type, node_set = read_dot_elem(elfile, midnodes=False)
+    nodedict, nodes = read_dot_node(nodefile, node_set)
 
     # some arbitrary data
     from numpy.random import random
@@ -200,7 +207,7 @@ if __name__=="__main__":
     ###########
     sys.path.append('/usr2/kravchen/Documents/codes/pylib/plotCSV/')
     import csv_utils
-    with open('data2d/test123.dat', 'rb') as f:
+    with open('data3d/test123.dat', 'rb') as f:
         data_dict = csv_utils.dict_from_csv(f)
     print data_dict.keys()
 
