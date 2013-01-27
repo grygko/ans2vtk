@@ -4,7 +4,8 @@ import sys
 import numpy as np
 
 
-def writefile(filename,nodes, nodedict, elements, elemdict,nodedata={}, vecnodedata={}):
+def writefile(filename,nodes, nodedict, elements, elemdict, cell_type,
+              nodedata={}, vecnodedata={}):
     """
     Notes:
         Format is based on "VTK 4.2 file formats" document
@@ -34,10 +35,10 @@ def writefile(filename,nodes, nodedict, elements, elemdict,nodedata={}, vecnoded
         #f.write('8 %d %d %d %d %d %d %d %d\n'%tuple([nodedict[i] for i in elements[n]]))
 
     # CELL_TYPES n
-    cell_types = {4: '9', 8 : '23', 20: '25'} # nodes num : VTK cell type
+    #cell_types = {4: '9', 8 : '23', 20: '25'} # nodes num : VTK cell type
     f.write('\nCELL_TYPES %d\n'%elnr)
-    for e in elements:
-        f.write('{0}\n'.format(cell_types[len(e)]))
+    for e in xrange(elnr):
+        f.write('{0}\n'.format(cell_type[e]))
 
     # POINT_DATA n; n - number of points
     if len(nodedata) == 0: return 0
@@ -88,39 +89,44 @@ def read_dot_elem(filename, midnodes=False):
     Returns:
         8 1 2 3 4 5 6 7 8
     """
-    cell_type = {'VTK_QUAD': '9', 
-                 'VTK_HEXAHEDRON': '12', 
-                 'VTK_QADRATIC_QUAD': '23', 
-                 'VTK_QUADRATIC_HEXAHEDRON': '25'}
+    vtk_cell_types = {'VTK_QUAD': '9', 
+                     'VTK_HEXAHEDRON': '12', 
+                     'VTK_QUADRATIC_QUAD': '23', 
+                     'VTK_QUADRATIC_HEXAHEDRON': '25'}
 
     with open(filename, 'rb') as f:
         ecount = 0
         elem_dict = {}         # new : old numbers
         elem_connect = []      # elements connectivity
+        cell_type = {}
         for line in f:
             # get rid of "\n", empty spaces and split into a list
             entries = line.splitlines()[0].split()
 
             # record or not mid-side nodes without knowing if elem is 2d or 3d
-            if not midnodes:
+            if not midnodes: # XXX stupid to check in the loop
                 try:
-                    elem_dict[int(entries[13])] = ecount # el.num is at pos 13
-                    elem_connect.append([cell_type['VTK_QUAD']])
-                    elem_connect[-1] += entries[:4])
+                    enum = int(entries[13]) # el.num is at pos 13
+                    elem_dict[enum] = ecount 
+                    elem_connect.append(entries[:4])
+                    cell_type[ecount] = vtk_cell_types['VTK_QUAD']
                     mnop_entries = entries[4:8]          # save M,N,O,P for later
-                except IndexError: # happens to 20-node elem
-                    elem_connect[-1][0] = cell_type['VTK_HEXAHEDRON']
+                    ecount += 1
+                except IndexError:                       # nodes > 8
+                    cell_type[ecount-1] = vtk_cell_types['VTK_HEXAHEDRON']
                     elem_connect[-1] += mnop_entries
             else:
                 try:
-                    elem_dict[int(entries[13])] = ecount # el.num is at pos 13
-                    elem_connect.append([cell_type['VTK_QUADRATIC_QUAD']])
-                    elem_connect[-1] += entries[:8])
-                except IndexError: # happens to 20-node elem
-                    elem_connect[-1][0] = cell_type['VTK_QUADRATIC_HEXAHEDRON']
-                    elem_connect[-1] += entries[:12]
-            ecount += 1
-    return elem_dic, elem_connect, cell_type
+                    enum = int(entries[13]) # el.num is at pos 13
+                    elem_dict[enum] = ecount 
+                    elem_connect.append(entries[:8])
+                    cell_type[ecount] = vtk_cell_types['VTK_QUADRATIC_QUAD']
+                    ecount += 1
+                except IndexError:                          # nodes > 8
+                    cell_type[ecount-1] = vtk_cell_types[
+                            'VTK_QUADRATIC_HEXAHEDRON']
+                    elem_connect[-1] += entries
+    return elem_dict, elem_connect, cell_type
 
 def augment_node_data(swap_nodedict, part_data, pkey='NODE', 
         aug_dict={'rest': -1}):
@@ -160,14 +166,12 @@ def augment_node_data(swap_nodedict, part_data, pkey='NODE',
 
     return res_dict
 
-    
-
 if __name__=="__main__":
     
     nodefile, elfile = ('data2d/submodsm6_v01_struct.node', 
                         'data2d/submodsm6_v01_struct.elem') # 8 node
-    #nodefile, elfile = ('data3d/submodsm6_v01_therm.node', 
-    #                    'data3d/submodsm6_v01_therm.elem') # 20 node
+    nodefile, elfile = ('data3d/submodsm6_v01_therm.node', 
+                        'data3d/submodsm6_v01_therm.elem') # 20 node
 
     nodes = []
     elements = []
@@ -179,7 +183,7 @@ if __name__=="__main__":
     #read_nodes(nodefile,nodes,nodedict)
     #read_elements(elfile,elements,elemdict)
     nodedict, nodes = read_dot_node(nodefile)
-    elemdict, elements = read_dot_elem(elfile)
+    elemdict, elements, cell_type = read_dot_elem(elfile, midnodes=True)
 
     # some arbitrary data
     from numpy.random import random
@@ -196,7 +200,7 @@ if __name__=="__main__":
     ###########
     sys.path.append('/usr2/kravchen/Documents/codes/pylib/plotCSV/')
     import csv_utils
-    with open('data2d/test123.dat', 'rb') as f:
+    with open('data3d/test123.dat', 'rb') as f:
         data_dict = csv_utils.dict_from_csv(f)
     print data_dict.keys()
 
@@ -234,6 +238,6 @@ if __name__=="__main__":
     for v in vecnodedata['VecF1'][:5]:
         print v
     
-    writefile('geo.vtk',nodes, nodedict, elements, elemdict, nodedata, vecnodedata)
+    writefile('geo.vtk',nodes, nodedict, elements, elemdict, cell_type, nodedata, vecnodedata)
     print 'finished'
 
