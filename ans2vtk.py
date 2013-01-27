@@ -51,7 +51,7 @@ def writefile(filename,nodes, nodedict, elements, elemdict, cell_type,
             f.write('%g \n'%nodedata[dat][k])
 
     #for idx,case in enumerate(nodedata):
-    for dat in vecnodedata:         # ['VecF1']
+    for dat in vecnodedata:         # ['VecF1', '...']
         # VECTORS dataName dataType
         f.write('VECTORS {0} float\n'.format(dat))
         for j in xrange(nonr):
@@ -129,7 +129,7 @@ def read_dot_elem(filename, midnodes=False):
     return elem_dict, elem_connect, cell_type
 
 def augment_node_data(swap_nodedict, part_data, pkey='NODE', 
-        aug_dict={'rest': -1}):
+        aug_dict={'rest': 0}):
     """Return augmented sorted list containing data for all nodes in node_dict
 
     Args:
@@ -170,8 +170,8 @@ if __name__=="__main__":
     
     nodefile, elfile = ('data2d/submodsm6_v01_struct.node', 
                         'data2d/submodsm6_v01_struct.elem') # 8 node
-    nodefile, elfile = ('data3d/submodsm6_v01_therm.node', 
-                        'data3d/submodsm6_v01_therm.elem') # 20 node
+    #nodefile, elfile = ('data3d/submodsm6_v01_therm.node', 
+    #                    'data3d/submodsm6_v01_therm.elem') # 20 node
 
     nodes = []
     elements = []
@@ -200,13 +200,17 @@ if __name__=="__main__":
     ###########
     sys.path.append('/usr2/kravchen/Documents/codes/pylib/plotCSV/')
     import csv_utils
-    with open('data3d/test123.dat', 'rb') as f:
+    with open('data2d/test123.dat', 'rb') as f:
         data_dict = csv_utils.dict_from_csv(f)
     print data_dict.keys()
 
     aug_nodedata = augment_node_data(backlist, data_dict,
             aug_dict={'rest':0})
     nodedata['eps_a'] = aug_nodedata['eps_a']
+    vecnodedata['eps'] = zip(aug_nodedata['eps_ax'],
+                             aug_nodedata['eps_ay'],
+                             aug_nodedata['eps_az'])
+
 
     # #######
     # EXPLORE
@@ -235,7 +239,7 @@ if __name__=="__main__":
         print k, ':', backlist[k]
 
     print '\nvector field data'
-    for v in vecnodedata['VecF1'][:5]:
+    for v in vecnodedata['eps'][:5]:
         print v
     
     writefile('geo.vtk',nodes, nodedict, elements, elemdict, cell_type, nodedata, vecnodedata)
